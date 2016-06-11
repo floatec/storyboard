@@ -15,7 +15,7 @@ $app->get('/', function() {
 });
 $app->get('/init/db', function() {
     $app = \Slim\Slim::getInstance();
-    echo "DataBase was reseted";
+
     $app = \Slim\Slim::getInstance();
     $db = getDB();
     $db->setAttribute(PDO::ATTR_EMULATE_PREPARES, 0);
@@ -27,6 +27,7 @@ $app->get('/init/db', function() {
         }
 
     }
+    echo "DataBase was reseted";
 });
 $app->get('/user/', function () {
     $app = \Slim\Slim::getInstance();
@@ -51,18 +52,22 @@ $app->get('/article/', function () {
     $app->response()->headers->set('Content-Type', 'application/json');
     echo json_encode($results);
 });
-$app->get('/post/', function () {
+$app->post('/article/', function () {
     $app = \Slim\Slim::getInstance();
     $db = getDB();
-    $sth = $db->prepare("INSERT INTO `article` (`id`, `title`, `notes`, `deadline`, `created_by`) VALUES (NULL, :title, :note', :deadline, :user);");
-    $sth->bindValue(':user', ( $_SESSION["user"]));
-    $sth->bindValue(':user', ( $_SESSION["user"]));
+    $json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $sth = $db->prepare("INSERT INTO `article` (`id`, `title`, `notes`, `deadline`, `created_by`) VALUES (NULL, :title, :note, :deadline, :userid)");
+    $sth->bindValue(':userid', ( $_SESSION["user"]));
+    $sth->bindValue(':title', $data['title']);
+    $sth->bindValue(':note', $data['note']);
+    $sth->bindValue(':deadline', $data['deadline']);
     $sth->execute();
-    $results = $sth->fetchAll(PDO::FETCH_ASSOC);
+
 
     $app->response->setStatus(200);
     $app->response()->headers->set('Content-Type', 'application/json');
-    echo json_encode($results);
+    echo json_encode(["id"=>$db->lastInsertId()]);
 });
 $app->post('/article/user/:id', function ($id) {
     $app = \Slim\Slim::getInstance();
