@@ -2,7 +2,7 @@
 header('Access-Control-Allow-Origin: http://flobanana:8000');
 header("Access-Control-Allow-Credentials: true");
 
-$STATUS_FINISHED=99;
+$STATUS_FINISHED=3;
 error_reporting(-1);
 ini_set('display_errors', 'On');
 require 'vendor/autoload.php';
@@ -100,7 +100,7 @@ function getArticle($id,$lite=false){
             $sth->bindValue(':id', $pid);
             $sth->execute();
             $lanes['review']=array_merge($lanes['review'],$sth->fetchAll(PDO::FETCH_ASSOC));
-            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id AND state=99");
+            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id AND state=3");
             $sth->bindValue(':id', $pid);
             $sth->execute();
             $lanes['done']=array_merge($lanes['done'],$sth->fetchAll(PDO::FETCH_ASSOC));
