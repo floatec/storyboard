@@ -14,7 +14,7 @@ require_once("config.php");
 
 $app->get('/', function() {
     $app = \Slim\Slim::getInstance();
-    $app->redirect("/public_html/scrumj-frontend/app/index.html");
+    $app->redirect("/public_html/scrumj-frontend/app/index.html#!/landingpage");
     echo "Welcome to Slim 3.0 based API";
 });
 $app->get('/init/db', function() {
@@ -76,15 +76,38 @@ function getArticle($id,$lite=false){
     $sth->bindValue(':id', $id);
     $sth->execute();
     $article["pakage"]= $sth->fetchAll(PDO::FETCH_ASSOC);
+    $lanes=[];
+    $lanes['todo']=[];
+    $lanes['inprogress']=[];
+    $lanes['review']=[];
+    $lanes['done']=[];
     if(!$lite){
         for($i=0;$i<sizeof($article["pakage"]);$i++){
-            $pid=$article["pakage"][$i];
-            $sth = $db->prepare("SELECT * FROM article WHERE id=:id");
-            $sth->bindValue(':id', $id);
+            $pid=$article["pakage"][$i]['id'];
+            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id");
+            $sth->bindValue(':id', $pid);
             $sth->execute();
             $article['pakage'][$i]['task']=$sth->fetchAll(PDO::FETCH_ASSOC);
+            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id AND state=0");
+            $sth->bindValue(':id', $pid);
+            $sth->execute();
+            $lanes['todo']=array_merge($lanes['todo'],$sth->fetchAll(PDO::FETCH_ASSOC));
+            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id AND state=1");
+            $sth->bindValue(':id', $pid);
+            $sth->execute();
+            $lanes['inprogress']=array_merge($lanes['inprogress'],$sth->fetchAll(PDO::FETCH_ASSOC));
+            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id AND state=2");
+            $sth->bindValue(':id', $pid);
+            $sth->execute();
+            $lanes['review']=array_merge($lanes['review'],$sth->fetchAll(PDO::FETCH_ASSOC));
+            $sth = $db->prepare("SELECT * FROM task WHERE pakage_id=:id AND state=99");
+            $sth->bindValue(':id', $pid);
+            $sth->execute();
+            $lanes['done']=array_merge($lanes['done'],$sth->fetchAll(PDO::FETCH_ASSOC));
         }
+        $article["lanes"]=$lanes;
     }
+
   /*  $sth = $db->prepare("SELECT Count(task.id) FROM article,pakage,task WHERE article.id=:id AND article.id=pakage.article_id AND article.id=pakage.article_id ");
 
     $sth->bindValue(':id', $id);
@@ -114,10 +137,15 @@ $app->post('/article/', function () {
     $sth->bindValue(':userid', $_SESSION["user"]);
     $sth->execute();
 
+    $sth = $db->prepare("INSERT INTO `pakage` (`id`, `article_id`, `name`) VALUES (NULL, :id, :name);");
+    $sth->bindValue(':name', "DEFAULT");
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $pid=$db->lastInsertId();
 
     $app->response->setStatus(200);
     $app->response()->headers->set('Content-Type', 'application/json');
-    echo json_encode(["id"=>$id]);
+    echo json_encode(["id"=>$id,"pakage_id"=>$pid]);
 });
 $app->post('/article/pakage/:id', function ($id) {
     $app = \Slim\Slim::getInstance();
