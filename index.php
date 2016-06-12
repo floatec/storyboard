@@ -1,5 +1,8 @@
 <?php
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: http://flobanana:8000');
+header("Access-Control-Allow-Credentials: true");
+
+$STATUS_FINISHED=99;
 error_reporting(-1);
 ini_set('display_errors', 'On');
 require 'vendor/autoload.php';
@@ -7,10 +10,11 @@ $app = new \Slim\Slim();
 session_start();
 require_once("config.php");
 
-
+//$_SESSION["user"]=1;
 
 $app->get('/', function() {
     $app = \Slim\Slim::getInstance();
+    $app->redirect("/public_html/scrumj-frontend/app/index.html");
     echo "Welcome to Slim 3.0 based API";
 });
 $app->get('/init/db', function() {
@@ -52,6 +56,46 @@ $app->get('/article/', function () {
     $app->response()->headers->set('Content-Type', 'application/json');
     echo json_encode($results);
 });
+$app->get('/article/:id', function ($id) {
+    getArticle($id);
+});
+$app->get('/article/lite/:id', function ($id) {
+    getArticle($id,true);
+});
+
+
+function getArticle($id,$lite=false){
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $sth = $db->prepare("SELECT * FROM article WHERE id=:id");
+
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $article = $sth->fetch(PDO::FETCH_ASSOC);
+    $sth = $db->prepare("SELECT * FROM pakage WHERE article_id=:id");
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $article["pakage"]= $sth->fetchAll(PDO::FETCH_ASSOC);
+    if(!$lite){
+        for($i=0;$i<sizeof($article["pakage"]);$i++){
+            $pid=$article["pakage"][$i];
+            $sth = $db->prepare("SELECT * FROM article WHERE id=:id");
+            $sth->bindValue(':id', $id);
+            $sth->execute();
+            $article['pakage'][$i]['task']=$sth->fetchAll(PDO::FETCH_ASSOC);
+        }
+    }
+  /*  $sth = $db->prepare("SELECT Count(task.id) FROM article,pakage,task WHERE article.id=:id AND article.id=pakage.article_id AND article.id=pakage.article_id ");
+
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $article = $sth->fetch(PDO::FETCH_ASSOC);*/
+
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+    echo json_encode($article);
+}
+
 $app->post('/article/', function () {
     $app = \Slim\Slim::getInstance();
     $db = getDB();
@@ -64,11 +108,105 @@ $app->post('/article/', function () {
     $sth->bindValue(':deadline', $data['deadline']);
     $sth->execute();
 
+    $id=$db->lastInsertId();
+    $sth = $db->prepare("INSERT INTO article_user VALUES(:id,:userid)");
+    $sth->bindValue(':id', $id);
+    $sth->bindValue(':userid', $_SESSION["user"]);
+    $sth->execute();
+
+
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+    echo json_encode(["id"=>$id]);
+});
+$app->post('/article/pakage/:id', function ($id) {
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $sth = $db->prepare("INSERT INTO `pakage` (`id`, `article_id`, `name`) VALUES (NULL, :id, :name);");
+    $sth->bindValue(':name', $data['name']);
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+
 
     $app->response->setStatus(200);
     $app->response()->headers->set('Content-Type', 'application/json');
     echo json_encode(["id"=>$db->lastInsertId()]);
 });
+$app->get('/article/pakage/:id', function ($id) {
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $sth = $db->prepare("SELECT * FROM pakage WHERE article_id=article.id AND article_id=:id");
+
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $results = $sth->fetchAll(PDO::FETCH_ASSOC);
+
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+    echo json_encode($results);
+});
+$app->post('/article/pakage/task/:id', function ($id) {
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $sth = $db->prepare("INSERT INTO `task` (`id`, `pakage_id`, `user_id`, `name`, `deadline`, `description`, `review`) VALUES (NULL, :id, :userid, :name, :deadline, :description, :review)");
+    $sth->bindValue(':name', $data['name']);
+    $sth->bindValue(':userid', $data['userid']);
+    $sth->bindValue(':deadline', $data['deadline']);
+    $sth->bindValue(':description', $data['description']);
+    $sth->bindValue(':review', $data['review']);
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+
+
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+    echo json_encode(["id"=>$db->lastInsertId()]);
+});
+
+$app->post('/article/pakage/task/status/:id', function ($id) {
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $sth = $db->prepare("UPDATE task SET status=:status WHERE id=:id");
+    $sth->bindValue(':status', $data['status']);
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+
+});
+$app->post('/article/pakage/task/status/:id', function ($id) {
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $sth = $db->prepare("UPDATE task SET status=:status WHERE id=:id");
+    $sth->bindValue(':status', $data['status']);
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+
+});
+$app->post('/article/pakage/task/data/:id', function ($id) {
+    $app = \Slim\Slim::getInstance();
+    $db = getDB();
+    $json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $sth = $db->prepare("UPDATE task SET data=:data WHERE id=:id");
+    $sth->bindValue(':data', $data['data']);
+    $sth->bindValue(':id', $id);
+    $sth->execute();
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
+
+});
+
 $app->post('/article/user/:id', function ($id) {
     $app = \Slim\Slim::getInstance();
     $db = getDB();
@@ -142,11 +280,18 @@ $app->post('/login/', function () {
         echo json_encode(["status"=>"FAIL",'msg'=>"no valid credentials"]);
         $db = null;
     }
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
 });
 $app->post('/logout/', function () {
     $app = \Slim\Slim::getInstance();
    unset( $_SESSION["user"]);
+    $app->response->setStatus(200);
+    $app->response()->headers->set('Content-Type', 'application/json');
 
 });
+
+
+
 
 $app->run();
